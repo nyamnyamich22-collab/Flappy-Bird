@@ -1072,13 +1072,13 @@
 
     function updateSpeedLogic() {
         if (currentGameMode === 'hardcore') {
-            // Hardcore: Smaller gap, faster start, faster scaling
-            pipes.gap = 95;
-            pipes.dx = 2.5 + (gameSpeedLevel * 0.45); 
-            bird.gravity = 0.22 + (gameSpeedLevel * 0.02);
-            pipes.spawnInterval = Math.max(45, Math.floor(150 / pipes.dx));
+            // Hardcore: TOTALLY FIXED high difficulty, ignores slider
+            pipes.gap = 90;
+            pipes.dx = 4.0; 
+            bird.gravity = 0.32;
+            pipes.spawnInterval = 60; // frequent pipes
         } else {
-            // Normal: Standard gap
+            // Normal: Respects slider
             pipes.gap = 130;
             pipes.dx = 1.0 + (gameSpeedLevel * 0.35); 
             bird.gravity = 0.15 + (gameSpeedLevel * 0.015);
@@ -1952,10 +1952,17 @@
         update: function() {
             if(state.current !== state.game) return;
 
-            // Progressive speed scaling: +0.3 every 5 points, max 8
-            let baseSpeed = parseFloat(speedRange.value) || 2.5;
-            this.dx = Math.min(baseSpeed + Math.floor(score.value / 5) * 0.3, 8);
-            this.spawnInterval = Math.max(60, 100 - Math.floor(score.value / 5) * 3);
+            // Progressive speed scaling
+            if (currentGameMode === 'hardcore') {
+                // FIXED HARDCORE SCALING (ignoring slider)
+                this.dx = Math.min(4.0 + Math.floor(score.value / 3) * 0.4, 10);
+                this.spawnInterval = Math.max(45, 60 - Math.floor(score.value / 4) * 2);
+            } else {
+                // Normal scale (respects slider)
+                let baseSpeed = parseFloat(speedRange.value) || 2.5;
+                this.dx = Math.min(baseSpeed + Math.floor(score.value / 5) * 0.3, 8.5);
+                this.spawnInterval = Math.max(60, 100 - Math.floor(score.value / 5) * 3);
+            }
             
             if(frames % this.spawnInterval === 0) {
                 let isMoving = score.value > 5 && Math.random() > 0.6;
