@@ -269,6 +269,51 @@
             pointer-events: none;
             visibility: hidden;
         }
+
+        /* Mode Selection Styles */
+        .mode-btn {
+            width: 100%;
+            margin-bottom: 12px;
+            padding: 15px;
+            font-size: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .mode-btn .desc {
+            font-size: 12px;
+            font-weight: normal;
+            opacity: 0.8;
+        }
+        .mode-hardcore {
+            background: linear-gradient(to bottom, #FF4500, #8B0000);
+            box-shadow: 0 6px 20px rgba(139, 0, 0, 0.4);
+        }
+        .mode-hardcore:hover {
+            box-shadow: 0 8px 25px rgba(231, 76, 60, 0.6);
+        }
+
+        /* Leaderboard Toggle */
+        .lb-toggle {
+            display: flex;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 4px;
+            margin-bottom: 15px;
+            width: 85%;
+        }
+        .lb-toggle button {
+            flex: 1;
+            padding: 8px;
+            font-size: 14px;
+            background: transparent;
+            box-shadow: none;
+            border-radius: 18px;
+        }
+        .lb-toggle button.active {
+            background: linear-gradient(to bottom, #8e2de2, #4a00e0);
+            box-shadow: 0 4px 10px rgba(74, 0, 224, 0.3);
+        }
     </style>
 </head>
 <body>
@@ -305,6 +350,22 @@
         <button id="closeSettingsBtn" class="btn-danger" data-i18n="backBtn">Назад</button>
     </div>
 
+    <!-- Mode Selection Menu -->
+    <div id="modeMenu" class="overlay hidden" style="z-index: 25;">
+        <h2 style="font-size: 32px; margin-bottom: 25px; text-shadow: 0 0 10px rgba(255,255,255,0.5);" data-i18n="selectMode">Оберіть режим</h2>
+        <div style="width: 80%;">
+            <button id="chooseNormalBtn" class="mode-btn">
+                <span data-i18n="modeNormal">Звичайний</span>
+                <span class="desc">Gap: 130</span>
+            </button>
+            <button id="chooseHardcoreBtn" class="mode-btn mode-hardcore">
+                <span data-i18n="modeHardcore">HARDCORE</span>
+                <span class="desc">Gap: 95 + Speed ⚡</span>
+            </button>
+        </div>
+        <button id="closeModeBtn" class="btn-danger" style="margin-top: 20px;" data-i18n="backBtn">Назад</button>
+    </div>
+
     <!-- Shop Menu -->
     <div id="shopMenu" class="overlay hidden">
         <h2 style="font-size: 32px; margin-bottom: 15px; text-shadow: 0 0 10px rgba(255,255,255,0.5);" data-i18n="shopTitle">Магазин Скінів</h2>
@@ -314,7 +375,13 @@
 
     <!-- Leaderboard Menu -->
     <div id="leaderboardMenu" class="overlay hidden">
-        <h2 style="font-size: 32px; margin-bottom: 15px; text-shadow: 0 0 10px rgba(255,255,255,0.5);" data-i18n="leaderboardTitle">Топ Рекордів</h2>
+        <h2 id="lbTitle" style="font-size: 32px; margin-bottom: 15px; text-shadow: 0 0 10px rgba(255,255,255,0.5);" data-i18n="leaderboardTitle">Топ Рекордів</h2>
+        
+        <div class="lb-toggle">
+            <button id="lbNormalTab" class="active" data-i18n="modeNormal">Звичайний</button>
+            <button id="lbHardcoreTab" data-i18n="modeHardcore">HARDCORE</button>
+        </div>
+
         <div class="list-container" id="leaderboardItems"></div>
         <button id="closeLeaderboardBtn" class="btn-danger" data-i18n="backBtn">Назад</button>
     </div>
@@ -418,7 +485,8 @@
                   coins: 0,
                   skins: ["default"],
                   eq: "default",
-                  best: 0
+                  best: 0,
+                  bestHardcore: 0
               };
               await setDoc(doc(db, "users", cred.user.uid), newData);
               if (window.updatePlayerData) window.updatePlayerData(newData);
@@ -467,11 +535,11 @@
       }
   });
 
-  window.saveDataToFirebase = async function(coins, skins, eq, best) {
+  window.saveDataToFirebase = async function(coins, skins, eq, best, bestHardcore) {
       if (auth.currentUser) {
           try {
               await setDoc(doc(db, "users", auth.currentUser.uid), {
-                  coins, skins, eq, best
+                  coins, skins, eq, best, bestHardcore
               }, { merge: true });
           } catch(e) {
               console.log("Firestore save error", e);
@@ -479,16 +547,18 @@
       }
   };
 
-  window.fetchGlobalLeaderboard = async function() {
+  window.fetchGlobalLeaderboard = async function(mode = 'normal') {
       try {
-          const q = query(collection(db, "users"), orderBy("best", "desc"), limit(10));
+          const field = mode === 'hardcore' ? "bestHardcore" : "best";
+          const q = query(collection(db, "users"), orderBy(field, "desc"), limit(10));
           const querySnapshot = await getDocs(q);
           const results = [];
           querySnapshot.forEach((docSnap) => {
              let data = docSnap.data();
-             if (data.best && data.best > 0) {
+             let score = data[field];
+             if (score && score > 0) {
                  let isMe = (auth.currentUser && docSnap.id === auth.currentUser.uid);
-                 results.push({ name: data.nickname || "Гість", score: data.best, isMe: isMe });
+                 results.push({ name: data.nickname || "Гість", score: score, isMe: isMe });
              }
           });
           return results;
@@ -531,6 +601,14 @@
     const earnedCoinsUI = document.getElementById("earnedCoins");
     const shopItemsContainer = document.getElementById("shopItems");
     const leaderboardItemsContainer = document.getElementById("leaderboardItems");
+    const lbNormalTab = document.getElementById("lbNormalTab");
+    const lbHardcoreTab = document.getElementById("lbHardcoreTab");
+    const lbTitle = document.getElementById("lbTitle");
+
+    const modeMenu = document.getElementById("modeMenu");
+    const chooseNormalBtn = document.getElementById("chooseNormalBtn");
+    const chooseHardcoreBtn = document.getElementById("chooseHardcoreBtn");
+    const closeModeBtn = document.getElementById("closeModeBtn");
 
     const startBtn = document.getElementById("startBtn");
     const playAgainBtn = document.getElementById("playAgainBtn");
@@ -577,7 +655,12 @@
             skin_legendary: "Фенікс",
             skin_ghost: "Привид",
             skin_ninja: "Ніндзя",
-            skin_golden: "Золотий Бос"
+            skin_golden: "Золотий Бос",
+
+            selectMode: "Оберіть режим",
+            modeNormal: "Звичайний",
+            modeHardcore: "HARDCORE",
+            hardcoreTitle: "Hardcore Рейтинг"
         },
         en: {
             gameTitle: "Flappy Bird",
@@ -611,7 +694,12 @@
             skin_legendary: "Phoenix",
             skin_ghost: "Ghost",
             skin_ninja: "Ninja",
-            skin_golden: "Golden Boss"
+            skin_golden: "Golden Boss",
+
+            selectMode: "Select Mode",
+            modeNormal: "Normal",
+            modeHardcore: "HARDCORE",
+            hardcoreTitle: "Hardcore Leaderboard"
         }
     };
 
@@ -651,6 +739,7 @@
     // Game variables
     let frames = 0;
     let gameSpeedLevel = parseInt(speedRange.value); 
+    let currentGameMode = 'normal'; // 'normal' or 'hardcore'
     
     const state = {
         menu : 0,
@@ -664,17 +753,21 @@
     let unlockedSkins = JSON.parse(localStorage.getItem("flappy_skins")) || ["default"];
     let currentSkinId = localStorage.getItem("flappy_equipped") || "default";
     let myBestScore = parseInt(localStorage.getItem("flappy_best")) || 0;
+    let myBestScoreHC = parseInt(localStorage.getItem("flappy_best_hc")) || 0;
 
     window.updatePlayerData = function(data) {
         if(data.coins !== undefined) coins = data.coins;
         if(data.skins) unlockedSkins = data.skins;
         if(data.eq) currentSkinId = data.eq;
         if(data.best !== undefined) myBestScore = data.best;
+        if(data.bestHardcore !== undefined) myBestScoreHC = data.bestHardcore;
+        
         coinCountUI.innerText = coins;
         localStorage.setItem("flappy_coins", coins);
         localStorage.setItem("flappy_skins", JSON.stringify(unlockedSkins));
         localStorage.setItem("flappy_equipped", currentSkinId);
         localStorage.setItem("flappy_best", myBestScore);
+        localStorage.setItem("flappy_best_hc", myBestScoreHC);
         if(!shopMenu.classList.contains("hidden")) renderShop();
     }
 
@@ -734,27 +827,54 @@
         });
     }
 
+    let currentLBMode = 'normal';
+
     async function renderLeaderboard(silent = false) {
         const t = translations[currentLang];
+        
+        if (currentLBMode === 'hardcore') {
+            lbTitle.innerText = t.hardcoreTitle || "Hardcore Ranking";
+        } else {
+            lbTitle.innerText = t.leaderboardTitle;
+        }
+
         if (!silent) {
             leaderboardItemsContainer.innerHTML = '<div style="text-align:center; padding: 20px; color: white;">Завантаження...</div>';
         }
         
         let combined = [];
+        let fetchedFromFirebase = false;
+
         if (window.fetchGlobalLeaderboard) {
-            let fetched = await window.fetchGlobalLeaderboard();
+            let fetched = await window.fetchGlobalLeaderboard(currentLBMode);
             if (fetched && fetched.length > 0) {
                 combined = fetched;
+                fetchedFromFirebase = true;
             }
         }
         
-        if (combined.length === 0) {
-            combined = [...defaultLeaderboard];
-            if (myBestScore > 0) {
-                combined.push({ name: t.youRecord, score: myBestScore, isMe: true });
+        if (!fetchedFromFirebase) {
+            // Only show bots for Normal mode. Hardcore should stay clean/empty if no real accounts yet.
+            if (currentLBMode === 'normal') {
+                combined = [...defaultLeaderboard];
+            } else {
+                combined = []; // No bots for hardcore
             }
         }
+
+        // Check if I am already in the top 10 fetched
+        let myRecordInTop = combined.some(e => e.isMe);
+        let personalBest = currentLBMode === 'hardcore' ? myBestScoreHC : myBestScore;
+
+        if (!myRecordInTop && personalBest > 0) {
+            combined.push({ 
+                name: t.youRecord || "Ви (Ваш рекорд)", 
+                score: personalBest, 
+                isMe: true 
+            });
+        }
         
+        // Final sort to place 'You' correctly if we just added it, or keep the list correct
         combined.sort((a,b) => b.score - a.score);
         
         leaderboardItemsContainer.innerHTML = '';
@@ -765,12 +885,15 @@
             if (index === 2) rankMedal = "🥉";
             
             let displayName = entry.name;
-            if (entry.isMe && combined !== defaultLeaderboard) displayName += " (Ви)";
+            // Only add suffix if it's not already clear
+            if (entry.isMe && !displayName.includes("Ви") && !displayName.includes("You")) {
+                displayName += " (Ви)";
+            }
 
             let itemHTML = `
                 <div class="leaderboard-item ${entry.isMe ? 'is-me' : ''}">
                     <div class="rank">${rankMedal}</div>
-                    <div class="name">${displayName}</div>
+                    <div class="name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${displayName}</div>
                     <div class="score-val">${entry.score}</div>
                 </div>
             `;
@@ -800,7 +923,7 @@
                 return;
             }
         }
-        if(window.saveDataToFirebase) window.saveDataToFirebase(coins, unlockedSkins, currentSkinId, myBestScore);
+        if(window.saveDataToFirebase) window.saveDataToFirebase(coins, unlockedSkins, currentSkinId, myBestScore, myBestScoreHC);
         renderShop();
     }
 
@@ -814,13 +937,33 @@
     });
 
     startBtn.addEventListener("click", () => {
-        state.current = state.game;
         mainMenu.classList.add("hidden");
+        modeMenu.classList.remove("hidden");
+    });
+
+    closeModeBtn.addEventListener("click", () => {
+        modeMenu.classList.add("hidden");
+        mainMenu.classList.remove("hidden");
+    });
+
+    chooseNormalBtn.addEventListener("click", () => {
+        currentGameMode = 'normal';
+        startGame();
+    });
+
+    chooseHardcoreBtn.addEventListener("click", () => {
+        currentGameMode = 'hardcore';
+        startGame();
+    });
+
+    function startGame() {
+        state.current = state.game;
+        modeMenu.classList.add("hidden");
         scoreDisplay.style.display = "block";
         score.value = 0;
         scoreDisplay.innerText = score.value;
         updateSpeedLogic();
-    });
+    }
     
     playAgainBtn.addEventListener("click", () => {
         state.current = state.game;
@@ -864,6 +1007,20 @@
         mainMenu.classList.remove("hidden");
     });
 
+    lbNormalTab.addEventListener("click", () => {
+        currentLBMode = 'normal';
+        lbNormalTab.classList.add("active");
+        lbHardcoreTab.classList.remove("active");
+        renderLeaderboard();
+    });
+
+    lbHardcoreTab.addEventListener("click", () => {
+        currentLBMode = 'hardcore';
+        lbHardcoreTab.classList.add("active");
+        lbNormalTab.classList.remove("active");
+        renderLeaderboard();
+    });
+
     setInterval(() => {
         if (!leaderboardMenu.classList.contains("hidden")) {
             renderLeaderboard(true);
@@ -896,9 +1053,19 @@
     }
 
     function updateSpeedLogic() {
-        pipes.dx = 1.0 + (gameSpeedLevel * 0.35); 
-        bird.gravity = 0.15 + (gameSpeedLevel * 0.015);
-        pipes.spawnInterval = Math.max(50, Math.floor(180 / pipes.dx));
+        if (currentGameMode === 'hardcore') {
+            // Hardcore: Smaller gap, faster start, faster scaling
+            pipes.gap = 95;
+            pipes.dx = 2.5 + (gameSpeedLevel * 0.45); 
+            bird.gravity = 0.22 + (gameSpeedLevel * 0.02);
+            pipes.spawnInterval = Math.max(45, Math.floor(150 / pipes.dx));
+        } else {
+            // Normal: Standard gap
+            pipes.gap = 130;
+            pipes.dx = 1.0 + (gameSpeedLevel * 0.35); 
+            bird.gravity = 0.15 + (gameSpeedLevel * 0.015);
+            pipes.spawnInterval = Math.max(50, Math.floor(180 / pipes.dx));
+        }
     }
 
     // Графіка і Логіка
@@ -1960,12 +2127,19 @@
         coinCountUI.innerText = coins;
         earnedCoinsUI.innerText = earned;
 
-        if (score.value > myBestScore) {
-            myBestScore = score.value;
-            localStorage.setItem("flappy_best", myBestScore);
+        if (currentGameMode === 'hardcore') {
+            if (score.value > myBestScoreHC) {
+                myBestScoreHC = score.value;
+                localStorage.setItem("flappy_best_hc", myBestScoreHC);
+            }
+        } else {
+            if (score.value > myBestScore) {
+                myBestScore = score.value;
+                localStorage.setItem("flappy_best", myBestScore);
+            }
         }
         
-        if(window.saveDataToFirebase) window.saveDataToFirebase(coins, unlockedSkins, currentSkinId, myBestScore);
+        if(window.saveDataToFirebase) window.saveDataToFirebase(coins, unlockedSkins, currentSkinId, myBestScore, myBestScoreHC);
 
         finalScore.innerText = score.value;
         gameOverMenu.classList.remove("hidden");
