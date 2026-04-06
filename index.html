@@ -950,10 +950,26 @@
         currentGameMode = 'normal';
         startGame();
     });
+    chooseNormalBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        currentGameMode = 'normal';
+        startGame();
+    });
 
     chooseHardcoreBtn.addEventListener("click", () => {
         currentGameMode = 'hardcore';
         startGame();
+    });
+    chooseHardcoreBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        currentGameMode = 'hardcore';
+        startGame();
+    });
+
+    closeModeBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        modeMenu.classList.add("hidden");
+        mainMenu.classList.remove("hidden");
     });
 
     function startGame() {
@@ -962,6 +978,8 @@
         scoreDisplay.style.display = "block";
         score.value = 0;
         scoreDisplay.innerText = score.value;
+        pipes.reset();
+        bird.reset();
         updateSpeedLogic();
     }
     
