@@ -1679,21 +1679,86 @@
 
                 if (p.hasStar && !p.starCollected) {
                     ctx.save();
-                    ctx.translate(p.x + this.w / 2, p.y + this.h + this.gap / 2);
-                    ctx.shadowColor = "#f1c40f";
-                    ctx.shadowBlur = 15;
-                    ctx.fillStyle = "#f1c40f";
-                    
-                    let pulse = 1 + Math.sin(frames * 0.1) * 0.2;
+                    let sx = p.x + this.w / 2;
+                    let sy = p.y + this.h + this.gap / 2;
+                    ctx.translate(sx, sy);
+                    let pulse = 1 + Math.sin(frames * 0.12) * 0.18;
                     ctx.scale(pulse, pulse);
-                    
-                    ctx.beginPath();
-                    for(let j=0; j<5; j++) {
-                        ctx.lineTo(Math.cos((18+j*72)*Math.PI/180)*12, -Math.sin((18+j*72)*Math.PI/180)*12);
-                        ctx.lineTo(Math.cos((54+j*72)*Math.PI/180)*5, -Math.sin((54+j*72)*Math.PI/180)*5);
+
+                    if (p.starType === 'coin') {
+                        // 🟡 Coin — yellow spinning circle with $ symbol
+                        ctx.shadowColor = "#f1c40f"; ctx.shadowBlur = 12;
+                        ctx.fillStyle = "#f1c40f";
+                        ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = "#d4a017";
+                        ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = "rgba(255,255,255,0.5)";
+                        ctx.beginPath(); ctx.arc(-2, -3, 3, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = "#7B5800";
+                        ctx.font = "bold 9px Arial"; ctx.textAlign="center"; ctx.textBaseline="middle";
+                        ctx.fillText("🪙", 0, 1);
+                        ctx.strokeStyle = "#8B6914"; ctx.lineWidth = 1.5;
+                        ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI*2); ctx.stroke();
+
+                    } else if (p.starType === 'diamond') {
+                        // 💎 Diamond — cyan faceted gem
+                        ctx.shadowColor = "#00e5ff"; ctx.shadowBlur = 18;
+                        let dg = ctx.createLinearGradient(-11, -14, 11, 14);
+                        dg.addColorStop(0, "#e0f7fa");
+                        dg.addColorStop(0.3, "#00e5ff");
+                        dg.addColorStop(0.7, "#0077b6");
+                        dg.addColorStop(1, "#023e8a");
+                        ctx.fillStyle = dg;
+                        ctx.strokeStyle = "#00bcd4"; ctx.lineWidth = 1.5;
+                        // Diamond shape
+                        ctx.beginPath();
+                        ctx.moveTo(0, -14);   // top point
+                        ctx.lineTo(11, -4);   // top-right
+                        ctx.lineTo(11, 4);    // mid-right
+                        ctx.lineTo(0, 14);    // bottom point
+                        ctx.lineTo(-11, 4);   // mid-left
+                        ctx.lineTo(-11, -4);  // top-left
+                        ctx.closePath();
+                        ctx.fill(); ctx.stroke();
+                        // Facet lines
+                        ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(0,-14); ctx.lineTo(0,14);
+                        ctx.moveTo(-11,-4); ctx.lineTo(11,-4);
+                        ctx.stroke();
+                        // Glint
+                        ctx.fillStyle = "rgba(255,255,255,0.8)";
+                        ctx.beginPath(); ctx.ellipse(-3,-7,3,2,-0.5,0,Math.PI*2); ctx.fill();
+
+                    } else {
+                        // ⭐ Superstar — big glowing golden star
+                        ctx.shadowColor = "#ff0"; ctx.shadowBlur = 25;
+                        let sg = ctx.createRadialGradient(0,0,2,0,0,16);
+                        sg.addColorStop(0, "#fffde7");
+                        sg.addColorStop(0.4, "#ffeb3b");
+                        sg.addColorStop(1, "#f57f17");
+                        ctx.fillStyle = sg;
+                        ctx.strokeStyle = "#e65100"; ctx.lineWidth = 1.5;
+                        // 5-pointed star (bigger)
+                        ctx.beginPath();
+                        for(let j=0; j<5; j++) {
+                            ctx.lineTo(Math.cos((18+j*72)*Math.PI/180)*16, -Math.sin((18+j*72)*Math.PI/180)*16);
+                            ctx.lineTo(Math.cos((54+j*72)*Math.PI/180)*7,  -Math.sin((54+j*72)*Math.PI/180)*7);
+                        }
+                        ctx.closePath();
+                        ctx.fill(); ctx.stroke();
+                        // Sparkle rays
+                        ctx.save();
+                        ctx.strokeStyle = "rgba(255,255,200,0.8)"; ctx.lineWidth = 1;
+                        for(let ray=0; ray<8; ray++) {
+                            ctx.save();
+                            ctx.rotate(ray * Math.PI/4 + frames*0.05);
+                            ctx.beginPath(); ctx.moveTo(17,0); ctx.lineTo(22,0); ctx.stroke();
+                            ctx.restore();
+                        }
+                        ctx.restore();
                     }
-                    ctx.closePath();
-                    ctx.fill();
+
                     ctx.restore();
                 }
             }
@@ -1701,10 +1766,24 @@
         
         update: function() {
             if(state.current !== state.game) return;
+
+            // Progressive speed scaling: +0.3 every 5 points, max 8
+            let baseSpeed = parseFloat(speedRange.value) || 2.5;
+            this.dx = Math.min(baseSpeed + Math.floor(score.value / 5) * 0.3, 8);
+            this.spawnInterval = Math.max(60, 100 - Math.floor(score.value / 5) * 3);
             
             if(frames % this.spawnInterval === 0) {
                 let isMoving = score.value > 5 && Math.random() > 0.6;
-                let hasStar = score.value > 2 && Math.random() > 0.8;
+                // Stars are rarer: base 7% chance, types: coin(common), diamond(uncommon), super(rare)
+                let roll = Math.random();
+                let hasStar = score.value > 3 && roll > 0.95;
+                let starType = 'coin';
+                if (hasStar) {
+                    let typeRoll = Math.random();
+                    if (typeRoll > 0.85) starType = 'super';      // 15% of stars = super
+                    else if (typeRoll > 0.5) starType = 'diamond'; // 35% of stars = diamond
+                    else starType = 'coin';                         // 50% of stars = coin
+                }
 
                 this.position.push({
                     x: canvas.width,
@@ -1713,6 +1792,7 @@
                     isMoving: isMoving,
                     moveDir: Math.random() > 0.5 ? 1 : -1,
                     hasStar: hasStar,
+                    starType: starType,
                     starCollected: false
                 });
             }
@@ -1752,7 +1832,8 @@
                     let dist = Math.hypot(bird.x - starX, bird.y - starY);
                     if (dist < bird.radius + 15) {
                         p.starCollected = true;
-                        coins += 100;
+                        let reward = p.starType === 'super' ? 500 : p.starType === 'diamond' ? 250 : 100;
+                        coins += reward;
                         localStorage.setItem("flappy_coins", coins);
                         coinCountUI.innerText = coins;
                     }
