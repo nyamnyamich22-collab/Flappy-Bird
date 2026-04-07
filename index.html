@@ -346,7 +346,7 @@
             
             <span id="userEmailSettings" style="font-size: 14px; color: #ccc; display: block; margin-bottom: 15px; font-weight: bold;">Акаунт: Гість</span>
             <button id="logoutSettingsBtn" class="btn-danger" style="width: 100%; font-size: 14px; padding: 10px;" data-i18n="logoutOrSwitchBtn">Вийти / Змінити акаунт</button>
-            <button id="debugAddCoins" class="btn" style="background: linear-gradient(to bottom, #e67e22, #d35400); margin-top: 20px; width: 100%; font-size: 13px; padding: 8px;">🧪 Симуляція: +5000 монет</button>
+
         </div>
         <button id="closeSettingsBtn" class="btn-danger" data-i18n="backBtn">Назад</button>
     </div>
@@ -940,15 +940,7 @@
         mainMenu.classList.remove("hidden");
     });
 
-    const debugAddCoins = document.getElementById("debugAddCoins");
-    debugAddCoins.addEventListener("click", () => {
-        coins += 5000;
-        localStorage.setItem("flappy_coins", coins);
-        coinCountUI.innerText = coins;
-        if(window.saveDataToFirebase) window.saveDataToFirebase(coins, unlockedSkins, currentSkinId, myBestScore, myBestScoreHC);
-        if(!shopMenu.classList.contains("hidden")) renderShop();
-        alert("Додано 5000 монет! Тепер у вас: " + coins);
-    });
+
 
     // Game variables
     let frames = 0;
